@@ -1,0 +1,5 @@
+cvxpy
+numpy
+multiprocessing
+opencv-contrib-python==4.10.0.84
+tqdm==4.66.5

@@ -1,0 +1,8 @@
+__pycache__/
+data/CIFAR10
+data/MNIST
+sim_matrix.txt
+sim_matrix.csv
+x.txt
+results/
+.vscode/
