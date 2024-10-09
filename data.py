@@ -274,7 +274,7 @@ def partition_data(
 
     label_count = np.zeros(10)
     for i in tqdm(range(num_clients), desc = f"Partitionning {dataset_name}, {partition}"):
-        directory = f"./data/{dataset_name}/{num_clients}_clients/{partition}/client_{i}"
+        directory = f"./data/{sub_ratio}/{dataset_name}/{num_clients}_clients/{partition}/client_{i}"
         if not os.path.exists(directory):
             os.makedirs(directory)
         for j in range(len(partitioned_set[i])):
@@ -284,6 +284,22 @@ def partition_data(
             elif dataset_name == "cifar10": 
                 img = partitioned_set[i][j][0].numpy().transpose(1,2,0)*255
             cv.imwrite(os.path.join(directory, f"{partitioned_set[i][j][1]}_{label_count[partitioned_set[i][j][1]]}.jpg"), img)
+    
+    partitioned_set, test_set = partition_data_similarity(num_clients=num_clients, similarity=similarity, dataset_name=dataset_name, sub_ratio=sub_ratio)
+    count = 0
+    for i in tqdm(range(num_clients), desc = f"Server collecting {dataset_name}"):
+        directory = f"./data/{sub_ratio}/{dataset_name}/server/"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        for j in range(1, len(partitioned_set[i]), num_clients):
+            label_count[partitioned_set[i][j][1]] += 1
+            if dataset_name == "mnist":    
+                img = np.squeeze(partitioned_set[i][j][0].numpy())*255
+            elif dataset_name == "cifar10": 
+                img = partitioned_set[i][j][0].numpy().transpose(1,2,0)*255
+            cv.imwrite(os.path.join(directory, f"{partitioned_set[i][j][1]}_{label_count[partitioned_set[i][j][1]]}.jpg"), img)
+            count += 1
+    print(f"count: {count}")
     return partitioned_set, test_set
 
 def download_centralized(dataset_name, sub_ratio):
@@ -291,10 +307,11 @@ def download_centralized(dataset_name, sub_ratio):
     
     label_count = np.zeros(10)
 
-    directory = f"./data/{dataset_name}/centralized/"
+    directory = f"./data/{sub_ratio}/{dataset_name}/centralized/"
     if not os.path.exists(directory):
         os.makedirs(directory)
 
+    count = 0
     for i in tqdm(range(len(trainset)), desc = f"Downloading centralized {dataset_name}"):
         label_count[trainset[i][1]] += 1
         if dataset_name == "mnist":    
@@ -302,9 +319,11 @@ def download_centralized(dataset_name, sub_ratio):
         elif dataset_name == "cifar10": 
             img = trainset[i][0].numpy().transpose(1,2,0)*255
         cv.imwrite(os.path.join(directory, f"{trainset[i][1]}_{label_count[trainset[i][1]]}.jpg"), img)
+        count += 1
+    print(f"count: {count}")
 if __name__ == "__main__":
-    num_clis = 10
-    k = 10
+    num_clis = 5
+    k = 20
     # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "mnist", partition = "IID", sub_ratio=k)
     # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "mnist", partition = "label_quantity_1", sub_ratio=k)
     # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "mnist", partition = "label_quantity_2", sub_ratio=k)
@@ -312,9 +331,9 @@ if __name__ == "__main__":
     # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "mnist", partition = "dirichlet", alpha = 0.5, sub_ratio=k)
 
     # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "cifar10", partition = "IID", sub_ratio=k)
-    # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "cifar10", partition = "label_quantity_1")
+    # # # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "cifar10", partition = "label_quantity_1")
     # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "cifar10", partition = "label_quantity_2", sub_ratio=k)
     # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "cifar10", partition = "label_quantity_3", sub_ratio=k)
     # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "cifar10", partition = "dirichlet", alpha = 0.5, sub_ratio=k)
     download_centralized("cifar10", sub_ratio=k)
-    download_centralized("mnist", sub_ratio=k)
+    # download_centralized("mnist", sub_ratio=k)

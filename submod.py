@@ -10,10 +10,8 @@ CONSTRAINT = 10
 LEARNING_RATE = 0.05
 ITER = 1000
 
-f_dict = {}
-
 #Facility location
-def f(R, matrix):
+def f(R, matrix, f_dict):
     R_tuple = tuple(R)
     if R_tuple not in f_dict:
         selected_indices = np.where(R == 1)[0]
@@ -24,20 +22,21 @@ def f(R, matrix):
             max_similarities = matrix[selected_indices, :].max(axis=0)
             # print(max_similarities)
             max_similarity = max_similarities.sum()
-        f_dict[R_tuple] = max_similarity/len(R)
+            # print(max_similarity)
+        f_dict[R_tuple] = max_similarity/len(matrix[0])
     return f_dict[R_tuple]
 
-def compute_gradient_sample(R, E_size, matrix):
+def compute_gradient_sample(R, E_size, matrix, f_dict):
     grad = np.zeros(E_size)
     for i in range(E_size):
         Rd = R.copy()
         Rd[i] = 0
         Ru = R.copy()
         Ru[i] = 1
-        grad[i] = f(Ru, matrix) - f(Rd, matrix)
+        grad[i] = f(Ru, matrix, f_dict) - f(Rd, matrix, f_dict)
     return grad
 
-def gradient_step(E_size, x, num_sample, matrix):
+def gradient_step(E_size, x, num_sample, matrix, f_dict):
     grad_f = np.zeros(E_size)
     
     random_matrix = np.random.rand(num_sample, E_size)
@@ -45,7 +44,7 @@ def gradient_step(E_size, x, num_sample, matrix):
 
     print("Conputing Gradient ...")
     for n in range(num_sample):
-        grad_f_n = compute_gradient_sample(R_matrix[n], E_size, matrix)
+        grad_f_n = compute_gradient_sample(R_matrix[n], E_size, matrix, f_dict)
         grad_f +=  grad_f_n  
 
         # results = Parallel(n_jobs=-1)(
@@ -56,13 +55,14 @@ def gradient_step(E_size, x, num_sample, matrix):
     grad_f /= num_sample
     return grad_f
 
-def submod_maximize(E_size: int, eta: float, max_iter: int, c: int, matrix: np.ndarray):
+def submod_maximize(E_size: int, eta: float, max_iter: int, k: int, matrix: np.ndarray):
     x = np.zeros(E_size)
     i = 0
     num_sample = NUM_SAMPLES
-    
+    f_dict = {}
+    # while (i < max_iter) and np.all(x < 1):
     while (i < max_iter) and np.all(x < 1):
-        grad_f = gradient_step(E_size, x, num_sample, matrix) 
+        grad_f = gradient_step(E_size, x, num_sample, matrix, f_dict) 
         
         print(f"Iteration {i+1}, Grad_f: {grad_f[:10]}")
         # print(f"\nIteration {i+1}:\n Grad_f: {grad_f}")
@@ -71,7 +71,7 @@ def submod_maximize(E_size: int, eta: float, max_iter: int, c: int, matrix: np.n
         constraints = [
             w >= 0,
             w <= 1,
-            cp.sum(w) <= c
+            cp.sum(w) <= k
         ]
         objective = cp.Maximize(w @ grad_f)
         problem = cp.Problem(objective, constraints)
@@ -93,9 +93,9 @@ def submod_maximize(E_size: int, eta: float, max_iter: int, c: int, matrix: np.n
         # print(f"\nX: {x}")    
         A_index = np.zeros(E_size)
         # print(f"argpart: {np.argpartition(x, -c)}")
-        x_10 = np.argpartition(x, -c)[-c:]
+        x_10 = np.argpartition(x, -k)[-k:]
         A_index[x_10] = 1
-        f_A = f(A_index, matrix)
+        f_A = f(A_index, matrix, f_dict)
 
         print(f"Selected: {x_10}")
         print(f"f_S: {f_A}")

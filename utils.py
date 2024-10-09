@@ -25,7 +25,7 @@ def read_folder(folder, dataset_name):
     print(f"Loaded {len(img_set)} images")
     return np.array(img_set,dtype=object)
 
-def plot_img(img_list, label_list):
+def plot_img(img_list):
     grid_size = int(np.ceil(np.sqrt(len(img_list))))
     fig, axs = plt.subplots(grid_size, grid_size, figsize=(10, 10))
 
@@ -45,27 +45,24 @@ def plot_img(img_list, label_list):
     plt.tight_layout()
     plt.show()
 
-def sampling(folder, x_file) -> Tuple[List, List]:
-
-    img_set = read_folder(folder=folder, dataset_name="mnist")
-
-    x = np.float32(np.loadtxt(x_file, delimiter=","))
+def sampling(img_set, x):
 
     random_matrix = np.random.rand(len(img_set))
     R_sample = (x >= random_matrix).astype(int)
     
-    img_list = []
-    label_list = []
-    for i, img in enumerate(img_set):
-        if R_sample[i] > 0:
-            img_list.append(img[0])
-            label_list.append(img[1])
-    
-    return img_list, label_list
-            
+    return R_sample
+
+def plot_data(img_set):
+    labels = np.zeros(10)
+    for e in img_set:
+        labels[int(e[1])] += 1
+    fig, ax = plt.subplots()
+    ax.bar([0,1,2,3,4,5,6,7,8,9] , labels)
+    plt.show()
+
 if __name__ == "__main__":
-    img_list,_ = sampling("./data/mnist/dirichlet/client_0_new", "./results/client_1.txt")
-    plot_img(img_list)
+    img_set = read_folder("./data/20/cifar10/5_clients/label_quantity_2/client_1", "cifar10")
+    plot_data(img_set)
     
     # sampling("./data/mnist/dirichlet/client_1_new", "./results/client_2.txt")
 

@@ -1,45 +1,52 @@
 import os
+import time
 import argparse
 import cv2 as cv
 import numpy as np
 
-from submod import submod_maximize
-from similarity import cal_sim_matrix
+import multiprocessing as mp
+from submod import submod_maximize, f
+from similarity import cal_sim_matrix, cal_sim
 from utils import read_folder, plot_img
 
 DATA_FOLDER = "./data/CIFAR10/label_quantity_3"
 RESULT_FOLDER = "./results"
-NUM_CLIENT = 2
+NUM_CLIENT = 5
 
 NUM_SAMPLES = 100
 CONSTRAINT = 10
 LEARNING_RATE = 0.05
-ITER = 1000
+ITER = 100
 
-def client_work(in_folder, out_folder, ci, lr, k):
+def client_work(in_folder, out_folder, ground_set, ci, lr, k, mp_queue=None):
     # print(f"Clien: {i+1}, pid: {os.getpid()}")
     print(f"\nClient {ci+1} started!")
-    dataset = in_folder.split("/")[1]
+    start = time.time()
 
-    img_set = read_folder(in_folder, dataset_name=dataset)
-    sim_matrix = cal_sim_matrix(img_set, ci, out_folder)
-    x, f_A, A_index = submod_maximize(len(img_set), eta=lr, max_iter=ITER, c=k, matrix = sim_matrix)
+    dataset = in_folder.split("/")[1]
+    print(f"Client {ci+1} reading V{ci+1} set...")
+    img_set = read_folder(os.path.join(in_folder, f"client_{i}"), dataset_name=dataset)
+    sim_matrix = cal_sim(img_set,ground_set)
+    x, f_A, A_index = submod_maximize(len(img_set), eta=lr, max_iter=ITER, k=k, matrix = sim_matrix)
     
     np.savetxt(os.path.join(out_folder, f"client_{ci+1}.txt"),x, delimiter = ",")
 
-    random_array = np.random.rand(len(img_set))
-    R_index = (x >= random_array).astype(int)
-
-    selected = []
-    for i, img in enumerate(img_set):
-        if R_index[i]:
-            selected.append(img) 
+    x_10 = np.argpartition(x, -k)[-k:]
+    selected = img_set[x_10]
+    # selected.append(img) 
     
-    print(f"Client {i+1} finished!")
+    print(f"Client {ci+1} finished! Time executed:{time.time()-start}")
 
-    return selected
+    # Concurrent setting
+    if mp_queue:
+        mp_queue.put((A_index, selected))
+    
+    #Sequential 
+    else:
+        return A_index, selected
 
 if __name__ == "__main__":
+    start = time.time()
     parser = argparse.ArgumentParser(description="Distrubuted Submodulr setting")
 
     parser.add_argument("-k", "--constraint", type=int, required=True)
@@ -57,52 +64,22 @@ if __name__ == "__main__":
     if not os.path.exists(result_folder):
         os.makedirs(result_folder)
     learning_rate = args.learningrate
-    constraint = args.constraint
+    k = args.constraint
+    dataset = args.directory.split("/")[0]
 
     print(f"\n======================================")
     print(f"STARTING: {args.directory}\n - Number of clients: 5;\n - Learning rate: {args.learningrate};\n - Constraint k = {args.constraint}; ")
 
-    B = []
-    A_list = []
-    fA_list = []
-
-    for i in range(num_clis):
-        A, f_A = client_work(os.path.join(data_folder, f"client_{i}"), result_folder, i, learning_rate, constraint)
-        A_list.append(A)
-        fA_list.append(f_A)
-        for j in range(len(A)):
-            B.append(A[j])
-    b_imgs = [b[0] for b in B]
-    plot_img(b_imgs)
-    print("Aggrerating clients' solutions ...")
-    B_matrix = cal_sim_matrix(B, num_clis+1 , result_folder)
-
-    x_Agc, f_Agc, Agc_index = submod_maximize(len(B), eta=learning_rate, max_iter=ITER, c=constraint, matrix = B_matrix)
-
-    Agc = []
-    for i, img in enumerate(B):
-        if Agc_index[i] == 1:
-            Agc.append(img) 
-
-    r = np.savetxt(os.path.join(result_folder, f"x_Agc.txt"),x_Agc, delimiter = ",")
-
-    A_list.append(Agc)
-    fA_list.append(f_Agc)
-    r = np.savetxt(os.path.join(result_folder, f"f_A.txt"),np.array(fA_list), delimiter = ",")
-
-    print(f"Global solution f_A: {max(fA_list)}")
-
-    max = A_list[np.argmax(np.array(fA_list))]    
-    max_imgs = [m[0] for m in max]
-
-    for i, img in enumerate(max_imgs):
-        cv.imwrite(os.path.join(result_folder, f"result_{i}.jpg"), img)
-
-    # plot_img(max_imgs)
+    # q = mp.Queue()
     # processes=[]
-    # output_queue = mp.Queue()
-    # for i, folder in enumerate(folder_list):
-    #     process = mp.Process( target=client_work, args=(folder, i,), name=f"Process-{i+1}" )
+    # for i in range (num_clis):
+    #     process = mp.Process( target=client_work,args= (
+    #                               os.path.join(data_folder, f"client_{i}"),
+    #                               result_folder,
+    #                               i,
+    #                               learning_rate,
+    #                               k, q),
+    #                               name=f"Process-{i+1}" )
     
     #     processes.append(process)
     #     process.start()
@@ -113,7 +90,77 @@ if __name__ == "__main__":
     #     print(f"{process.name} completed")
 
     # results = []
-    # while not output_queue.empty():
-    #     results.append(output_queue.get())
+    # while not q.empty():
+    #     results.append(q.get())
+
+    B = []
+    A_list = []
+    fA_list = []
+    index_list = []
+    print("Server reading V set...")
+    V = read_folder(os.path.join(args.input_folder,dataset,"centralized"), dataset_name=dataset)
+    # for i, A_index, A in enumerate(results):
+    #     A_list.append(A)
+    #     index_list.append(A_index)
+    #     for j in range(len(A)):
+    #         B.append(A[j])
+    # print(f"Got {len(B)} images.")
+    for i in range(num_clis):
+        A_index, A = client_work(data_folder, result_folder, V, i, learning_rate, k)
+        A_list.append(A)
+        # fA_list.append(f_A)
+        for j in range(len(A)):
+            B.append(A[j])
+    print(f"Got {len(B)} images.")
+
+    print("Aggrerating clients' solutions ...")
+    # f_A, A_index, A
+    # for ri, (index, A) in enumerate(results):
+    #     index_list.append(index)
+    #     A_list.append(A)
+    #     for j in range(A):
+    #         B.append(A[j])
+    # print(len(B))
+
+    print("Computing aggrerated set ...")
+    print("Computing A_i sets ...")
+    
+    f_dict = {}
+    for i, A_i in enumerate(A_list):
+        # A_imgs = [a[0] for a in A_list]
+        A_matrix = cal_sim(V, A_i)
+        R_A = np.ones(k)
+        fA_list.append(f(R_A, A_matrix, f_dict))
+        print(fA_list[i])
+        f_dict.clear()
+
+    print("Computing B set ...")
+    B_imgs = [b[0] for b in B]
+    # plot_img(B_imgs)
+    # B_matrix = cal_sim_matrix(B, num_clis+1 , result_folder)
+    V_B_matrix = cal_sim(V, B)
+    x_Agc, f_Agc, Agc_index = submod_maximize(len(B), eta=learning_rate, max_iter=ITER, k=k, matrix = V_B_matrix)
+    
+    fA_list.append(f_Agc)
+    Agc = []
+    x_10 = np.argpartition(x_Agc, -k)[-k:]
+    for i in x_10:    
+        Agc.append(B[i])
+    A_list.append(Agc)
+    fA_list.append(f_Agc)
+
+    print(f"Global solution f_A: {max(fA_list)}")
+
+    max = A_list[np.argmax(np.array(fA_list))]    
+    max_imgs = [m[0] for m in max]
+
+    r = np.savetxt(os.path.join(result_folder, f"x_Agc.txt"),x_Agc, delimiter = ",")
+
+    r = np.savetxt(os.path.join(result_folder, f"f_A.txt"),np.array(fA_list), delimiter = ",")
+
+    for i, img in enumerate(max_imgs):
+        cv.imwrite(os.path.join(result_folder, f"result_{i}.jpg"), img)
+
+    print(f"Total time executed: {time.time() - start}")
 
     

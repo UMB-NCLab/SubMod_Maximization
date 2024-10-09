@@ -1,6 +1,5 @@
 __pycache__/
-data/CIFAR10
-data/MNIST
+data/
 sim_matrix.txt
 sim_matrix.csv
 x.txt
