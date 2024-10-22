@@ -138,8 +138,8 @@ if __name__ == "__main__":
     B_imgs = [b[0] for b in B]
     # plot_img(B_imgs)
     # B_matrix = cal_sim_matrix(B, num_clis+1 , result_folder)
-    V_B_matrix = cal_sim(V, B)
-    x_Agc, f_Agc, Agc_index = submod_maximize(len(B), eta=learning_rate, max_iter=ITER, k=k, matrix = V_B_matrix)
+    B_B_matrix = cal_sim(B, B)
+    x_Agc, f_Agc, Agc_index = submod_maximize(len(B), eta=learning_rate, max_iter=ITER, k=k, matrix = B_B_matrix)
     
     fA_list.append(f_Agc)
     Agc = []

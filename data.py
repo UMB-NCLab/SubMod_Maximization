@@ -335,5 +335,5 @@ if __name__ == "__main__":
     # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "cifar10", partition = "label_quantity_2", sub_ratio=k)
     # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "cifar10", partition = "label_quantity_3", sub_ratio=k)
     # partitioned_set, test_set = partition_data(num_clients = num_clis, dataset_name = "cifar10", partition = "dirichlet", alpha = 0.5, sub_ratio=k)
-    download_centralized("cifar10", sub_ratio=k)
+    download_centralized("cifar10", sub_ratio=5*k)
     # download_centralized("mnist", sub_ratio=k)

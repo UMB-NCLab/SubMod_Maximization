@@ -13,6 +13,8 @@ ITER = 1000
 #Facility location
 def f(R, matrix, f_dict):
     R_tuple = tuple(R)
+    # print(type(R_tuple))
+    # print(type(f_dict))
     if R_tuple not in f_dict:
         selected_indices = np.where(R == 1)[0]
         # print(f"Sampled: {selected_indices}")
@@ -26,7 +28,8 @@ def f(R, matrix, f_dict):
         f_dict[R_tuple] = max_similarity/len(matrix[0])
     return f_dict[R_tuple]
 
-def compute_gradient_sample(R, E_size, matrix, f_dict):
+def compute_gradient_sample(R, matrix, f_dict):
+    E_size = len(R)
     grad = np.zeros(E_size)
     for i in range(E_size):
         Rd = R.copy()
@@ -36,7 +39,8 @@ def compute_gradient_sample(R, E_size, matrix, f_dict):
         grad[i] = f(Ru, matrix, f_dict) - f(Rd, matrix, f_dict)
     return grad
 
-def gradient_step(E_size, x, num_sample, matrix, f_dict):
+def gradient_estimate(x, num_sample, matrix, f_dict):
+    E_size = len(x)
     grad_f = np.zeros(E_size)
     
     random_matrix = np.random.rand(num_sample, E_size)
@@ -44,68 +48,72 @@ def gradient_step(E_size, x, num_sample, matrix, f_dict):
 
     print("Conputing Gradient ...")
     for n in range(num_sample):
-        grad_f_n = compute_gradient_sample(R_matrix[n], E_size, matrix, f_dict)
+        grad_f_n = compute_gradient_sample(R_matrix[n], matrix, f_dict)
         grad_f +=  grad_f_n  
-
         # results = Parallel(n_jobs=-1)(
         #     delayed(compute_gradient_sample)(R_matrix[n], E_size, matrix) for n in range(num_sample))
         # for grad in results:
         #     grad_f += grad
-    
     grad_f /= num_sample
     return grad_f
+
+def argmax_v(grad_f, k):
+    # print(f"Iteration {i+1}, Grad_f: {grad_f[:10]}")
+
+    w = cp.Variable(len(grad_f))
+    
+    constraints = [
+        w >= 0,
+        w <= 1,
+        cp.sum(w) <= k
+    ]
+    objective = cp.Maximize(w @ grad_f)
+    problem = cp.Problem(objective, constraints)
+    problem.solve()
+    
+    # if w.value is None:
+    #     print("Optimization failed.")
+    #     break
+    return w.value
 
 def submod_maximize(E_size: int, eta: float, max_iter: int, k: int, matrix: np.ndarray):
     x = np.zeros(E_size)
     i = 0
-    num_sample = NUM_SAMPLES
+    num_sample = 1
     f_dict = {}
     # while (i < max_iter) and np.all(x < 1):
     while (i < max_iter) and np.all(x < 1):
-        grad_f = gradient_step(E_size, x, num_sample, matrix, f_dict) 
+        print(f"\nITERATION {i+1}: ")
+
+        grad_f = gradient_estimate( x, num_sample, matrix, f_dict)
+        v = argmax_v(grad_f, k) 
         
-        print(f"Iteration {i+1}, Grad_f: {grad_f[:10]}")
-        # print(f"\nIteration {i+1}:\n Grad_f: {grad_f}")
-        w = cp.Variable(len(x))
-        
-        constraints = [
-            w >= 0,
-            w <= 1,
-            cp.sum(w) <= k
-        ]
-        objective = cp.Maximize(w @ grad_f)
-        problem = cp.Problem(objective, constraints)
-        problem.solve()
-        
-        if w.value is None:
-            print("Optimization failed.")
-            break
-        
-        v = w.value
-        x += eta * v
-        
+        x += eta * v #Gradient step
         # Optional: Project x to stay within [0,1]
         x = np.clip(x, 0, 1)
-        
+            
+        # print(f"Grad_f: {grad_f[:10]}")
         # print(f"\nV: {v[:10]}")
-        # print(f"\nX: {x[:10]}")
-        # print(f"\nV: {v}")
-        # print(f"\nX: {x}")    
+        # print(f"\nX: {x[:10]}") 
+        
+        print(f"Grad_f: {grad_f}")
+        print(f"\nV: {v}")
+        print(f"\nX: {x}")
+
         A_index = np.zeros(E_size)
         # print(f"argpart: {np.argpartition(x, -c)}")
         x_10 = np.argpartition(x, -k)[-k:]
         A_index[x_10] = 1
         f_A = f(A_index, matrix, f_dict)
 
-        print(f"Selected: {x_10}")
-        print(f"f_S: {f_A}")
+        # print(f"Selected: {x_10}")
+        # print(f"f_S: {f_A}")
 
         f_dict.clear()
         i += 1  # Correct increment 
 
     return x, f_A, A_index
 
-# DATA_FOLDER = ".\data\MNIST\IID\client_0"
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Distrubuted Submodulr setting")
@@ -130,7 +138,7 @@ if __name__ == '__main__':
 
     img_set = read_folder(data_folder, dataset_name=dataset)
     sim_matrix = cal_sim_matrix(img_set, -1, result_folder)
-    x, f_A, A_index = submod_maximize(len(img_set), eta=learning_rate, max_iter=ITER, c=constraint, matrix = sim_matrix)
+    x, f_A, A_index = submod_maximize(len(img_set), eta=learning_rate, max_iter=ITER, k=constraint, matrix = sim_matrix)
     
     np.savetxt(os.path.join(result_folder, f"centralized.txt"),x, delimiter = ",")
 

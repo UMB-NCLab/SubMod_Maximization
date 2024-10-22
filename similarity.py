@@ -12,16 +12,32 @@ def set2array(img_set: set):
 def cal_sim(img_set1, img_set2, folder=None):
 	img_shape = img_set1[0][0].shape
 	matrix = np.zeros(shape=(len(img_set1),len(img_set2)))
+
+	# print(img_set1[1][0][0, 0,:])
+	# print(img_set2[1][0][0, 0,:])
+	# print(img_set1[0][0][0, 0,:])
+	# print(img_set2[0][0][0, 0,:])
+	# print(np.absolute((img_set1[1][0] - img_set2[0][0]))[0, 0,:])
+	# print(np.absolute((img_set1[1][0] - img_set2[0][0]))[0, 0,:])
+	# print(np.sum(np.absolute(img_set1[1][0] - img_set2[0][0]))/ (img_shape[0]*img_shape[1]*img_shape[2]) /255)
+	# print(np.sum(np.absolute(img_set2[1][0] - img_set1[0][0]))/ (img_shape[0]*img_shape[1]*img_shape[2]) /255)
 	for i in range(len(img_set1)):
 		for j in range(len(img_set2)):
 			if len(img_shape) == 3:
+				# print(img_set1[i][0][0, 0,:])
+				# print(img_set2[j][0][0, 0,:])
 				diff = np.sum(np.absolute(img_set1[i][0] - img_set2[j][0])) / (img_shape[0]*img_shape[1]*img_shape[2]) /255  # normalize
 			elif len(img_shape) == 2:
 				diff = np.sum(np.absolute(img_set1[i][0] - img_set2[j][0])) / (img_shape[0]*img_shape[1]) /255  # normalize
 			similarity = 1 - diff
-			matrix[i][j] = similarity
+			# print(f"i: {i}, j: {j}, sim: {similarity}, diff: {diff}")
+			if (similarity == 1):
+				matrix[i][j] = 0
+			else:	
+				matrix[i][j] = similarity
 	if folder:
 		r = np.savetxt(os.path.join(folder, f"sim.csv"), matrix, delimiter=',')
+
 	return matrix
 
 def cal_sim_matrix(img_set, client_i, folder):
